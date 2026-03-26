@@ -144,7 +144,7 @@ class PriceResponse(BaseModel):
     unit: str = "quintal"
 
 
-async def get_user_from_token(authorization: Optional[str] = Header(None), auth: Optional[str] = Query(None)) -> User:
+async def get_user_from_token(authorization: Optional[str] = None, auth: Optional[str] = None) -> User:
     token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.replace("Bearer ", "")
@@ -233,15 +233,13 @@ async def create_session(request: Request):
         raise HTTPException(status_code=500, detail="Authentication failed")
 
 @api_router.get("/auth/me")
-async def get_me(user: User = None):
-    if not user:
-        user = await get_user_from_token()
+async def get_me(authorization: Optional[str] = Header(None)):
+    user = await get_user_from_token(authorization=authorization)
     return user
 
 @api_router.post("/auth/logout")
-async def logout(user: User = None):
-    if not user:
-        user = await get_user_from_token()
+async def logout(authorization: Optional[str] = Header(None)):
+    user = await get_user_from_token(authorization=authorization)
     await db.user_sessions.delete_many({"user_id": user.user_id})
     return {"message": "Logged out"}
 
