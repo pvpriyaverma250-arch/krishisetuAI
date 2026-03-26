@@ -1,172 +1,101 @@
 {
-  "identity": {
-    "name": "KrishiSetuAI",
-    "mission": "Empowering farmers with AI-driven market access and voice-first technology.",
-    "aesthetics": "Fresh, Organic, Trustworthy, Accessible.",
-    "archetype": "The Digital Kissan (Farmer)",
-    "tone": "Empathetic, Clear, Encouraging, Grounded."
-  },
+  "theme": "LIGHT",
+  "archetype": "Organic & Earthy (Modern Tech Twist)",
+  "design_philosophy": "A visually stunning, modern agricultural SaaS marketplace landing page. Fusing organic earthiness with high-tech glassmorphism, vibrant gradients, and smooth scroll animations. Built to inspire trust among Indian farmers while showcasing world-class technology.",
   "typography": {
-    "primary_font": "Manrope",
     "heading_font": "Outfit",
+    "body_font": "Manrope",
     "hindi_font": "Noto Sans Devanagari",
     "scale": {
-      "h1": "text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight",
-      "h2": "text-3xl md:text-4xl font-semibold tracking-tight",
-      "h3": "text-2xl md:text-3xl font-semibold",
-      "h4": "text-xl md:text-2xl font-medium",
-      "body_lg": "text-lg leading-relaxed",
-      "body_base": "text-base leading-relaxed text-slate-600",
-      "caption": "text-sm text-slate-500",
-      "price": "font-mono font-bold text-emerald-700"
-    },
-    "instructions": "Use Manrope for all body text and numbers (prices). Use Outfit for English headings. Use Noto Sans Devanagari for all Hindi text. Ensure high contrast."
+      "h1": "text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight",
+      "h2": "text-4xl sm:text-5xl font-bold tracking-tight",
+      "h3": "text-2xl sm:text-3xl font-semibold",
+      "body": "text-base sm:text-lg text-slate-600 leading-relaxed",
+      "labels": "text-sm font-medium tracking-wide uppercase"
+    }
   },
-  "colors": {
-    "theme": "light",
-    "palette": {
-      "primary": {
-        "DEFAULT": "#15803d",
-        "foreground": "#ffffff",
-        "hover": "#166534"
-      },
-      "secondary": {
-        "DEFAULT": "#d97706",
-        "foreground": "#ffffff",
-        "hover": "#b45309"
-      },
-      "accent": {
-        "DEFAULT": "#facc15",
-        "foreground": "#422006"
-      },
-      "background": "#f8fafc",
-      "surface": "#ffffff",
-      "text": {
-        "primary": "#0f172a",
-        "secondary": "#475569",
-        "muted": "#94a3b8"
-      },
-      "status": {
-        "success": "#22c55e",
-        "warning": "#f59e0b",
-        "error": "#ef4444",
-        "info": "#3b82f6"
-      }
+  "color_palette": {
+    "background": "#f8fafc",
+    "foreground": "#0f172a",
+    "primary": "#15803d",
+    "primary_hover": "#166534",
+    "primary_glow": "rgba(21, 128, 61, 0.4)",
+    "secondary": "#ca8a04",
+    "surface": {
+      "glass": "bg-white/70 backdrop-blur-xl",
+      "glass_border": "border-white/40",
+      "solid": "bg-white",
+      "subtle": "bg-slate-50"
     },
     "gradients": {
-      "hero": "bg-gradient-to-b from-green-50 to-white",
-      "card_highlight": "bg-gradient-to-br from-white to-green-50/50"
+      "hero_bg": "bg-gradient-to-br from-green-50 via-white to-orange-50",
+      "text_highlight": "bg-gradient-to-r from-green-700 to-green-500 bg-clip-text text-transparent"
     }
   },
-  "layout_strategy": {
-    "container": "container mx-auto px-4 md:px-6 max-w-7xl",
-    "spacing": {
-      "section_gap": "py-16 md:py-24",
-      "component_gap": "gap-6 md:gap-8",
-      "internal_padding": "p-6 md:p-8"
-    },
-    "grids": {
-      "dashboard": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
-      "listings": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6",
-      "features": "grid grid-cols-1 md:grid-cols-3 gap-8"
-    },
-    "mobile_adaptations": [
-      "Touch targets minimum 48px",
-      "Bottom navigation for primary actions",
-      "Floating Action Button (FAB) for Voice Assistant",
-      "Horizontal scroll for filters/categories",
-      "Cards occupy 95% width on mobile"
-    ]
+  "spacing_and_layout": {
+    "section_padding": "py-20 sm:py-32",
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "bento_grid": "grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8",
+    "border_radius": "rounded-3xl"
+  },
+  "motion_and_interactions": {
+    "hover_states": "hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ease-out",
+    "scroll_reveal": "Use Framer Motion for fade-up and stagger effects on scroll",
+    "floating_elements": "Use Framer Motion to create slow, continuous vertical floating animations for decorative background elements",
+    "button_active": "active:scale-95 transition-transform"
   },
   "components": {
-    "voice_assistant": {
-      "style": "Floating Action Button (FAB)",
-      "position": "fixed bottom-6 right-6 md:bottom-8 md:right-8 z-50",
-      "visual": "h-16 w-16 rounded-full bg-primary shadow-xl flex items-center justify-center animate-pulse-slow hover:scale-105 transition-transform",
-      "icon": "Microphone icon (Lucide) - text-white h-8 w-8"
+    "hero": {
+      "style": "Glassmorphism card overlaid on a vibrant gradient background with floating abstract spheres. Large headline using Outfit font, gradient text for emphasis. Two CTA buttons: Primary solid green, Secondary outline.",
+      "layout": "Grid cols-1 lg:grid-cols-2 gap-12 items-center"
     },
-    "cards": {
-      "style": "bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden",
-      "image_aspect": "aspect-[4/3] object-cover w-full",
-      "content_padding": "p-5"
+    "feature_cards": {
+      "style": "Modern bento box grid. Glassmorphism or pristine white cards with subtle borders (border-slate-100) and soft ambient shadows (shadow-[0_8px_30px_rgb(0,0,0,0.04)]). Each card should have a prominent icon (Lucide React) enclosed in a soft green circle.",
+      "layout": "Use col-span-2 for highlighted features, col-span-1 for standard features."
     },
-    "buttons": {
-      "primary": "bg-primary text-white hover:bg-primary/90 rounded-xl px-6 py-3 font-medium shadow-sm transition-all active:scale-95",
-      "secondary": "bg-white text-primary border-2 border-primary/20 hover:border-primary hover:bg-green-50 rounded-xl px-6 py-3 font-medium transition-all",
-      "ghost": "text-slate-600 hover:text-primary hover:bg-slate-100 rounded-lg px-4 py-2 transition-colors"
+    "how_it_works": {
+      "style": "Vertical timeline or connecting steps layout. Use high-contrast numbered badges.",
+      "layout": "Flex column or grid with connected dashed lines."
     },
-    "inputs": {
-      "style": "h-12 rounded-xl border-slate-200 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-lg",
-      "labels": "text-sm font-medium text-slate-700 mb-1.5 block"
-    },
-    "badges": {
-      "verified": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100",
-      "organic": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100",
-      "quality_grade": "inline-flex items-center justify-center h-8 w-8 rounded-full bg-amber-100 text-amber-800 font-bold text-sm border border-amber-200"
+    "stats_section": {
+      "style": "Dark background (bg-green-900) or rich green gradient section to break up the page. Large white typography for numbers.",
+      "layout": "Grid cols-2 md:grid-cols-4 gap-8 text-center"
     }
   },
-  "visual_assets": {
-    "icons": {
-      "library": "lucide-react",
-      "style": "Stroke width 2px for clarity. Use rounded line joins.",
-      "key_icons": ["Mic", "Sprout", "TrendingUp", "MapPin", "UserCheck", "ShoppingCart", "Languages"]
-    },
+  "media": {
     "images": {
-      "hero_main": {
-        "url": "https://images.pexels.com/photos/7415326/pexels-photo-7415326.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "alt": "Happy Indian farmer in rice field with smartphone",
-        "desc": "Use in Hero section with a soft gradient overlay at the bottom."
+      "hero_farmer": {
+        "url": "https://images.unsplash.com/photo-1769604031798-91ebd0b08db3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwyfHxpbmRpYW4lMjBmYXJtZXIlMjBzbWFydHBob25lfGVufDB8fHx8MTc3NDUzODU1MXww&ixlib=rb-4.1.0&q=85",
+        "description": "Indian farmer using smartphone, representing modern agriculture and tech adoption."
       },
-      "wheat_crop": {
-        "url": "https://images.pexels.com/photos/6054531/pexels-photo-6054531.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "alt": "Golden wheat crop close up",
-        "desc": "Use for Wheat category or Quality Grading feature."
+      "sunset_field": {
+        "url": "https://images.unsplash.com/photo-1633766158438-151884dabfc4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwyfHxhZ3JpY3VsdHVyYWwlMjBmaWVsZCUyMHN1bnNldHxlbnwwfHx8fDE3NzQ1Mzg1NTJ8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Beautiful golden hour sunset over agricultural field for background ambiance or stats section."
       },
-      "potato_crop": {
-        "url": "https://images.pexels.com/photos/775707/pexels-photo-775707.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "alt": "Fresh potatoes in hand",
-        "desc": "Use for Potato category or listing example."
+      "drone_farming": {
+        "url": "https://images.pexels.com/photos/34182313/pexels-photo-34182313.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Drone spraying crops, perfect for showcasing advanced technology features."
       },
-      "market_scene": {
-        "url": "https://images.unsplash.com/photo-1635929292265-95ab4b82e913?crop=entropy&cs=srgb&fm=jpg&q=85",
-        "alt": "Indian wholesale market scene",
-        "desc": "Use for Marketplace or Buyer Connect section."
+      "farmer_portrait": {
+        "url": "https://images.pexels.com/photos/2519332/pexels-photo-2519332.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Authentic portrait of an Indian farmer for the testimonial or community section."
       }
-    }
-  },
-  "motion": {
-    "philosophy": "Functional and calming. No erratic movements.",
-    "transitions": "transition-all duration-300 ease-out",
-    "animations": {
-      "fade_in": "animate-in fade-in duration-500",
-      "slide_up": "animate-in slide-in-from-bottom-4 duration-500",
-      "pulse_slow": "animate-pulse duration-[3000ms]"
-    }
+    },
+    "icons": "Use lucide-react for all interface icons. Keep stroke-width to 1.5 or 2 for a clean, modern look."
   },
   "accessibility": {
-    "contrast": "Ensure WCAG AA compliance (4.5:1 minimum).",
-    "voice_support": "All critical actions must be voice-accessible.",
-    "touch_targets": "Minimum 44x44px for all interactive elements.",
-    "focus_states": "Visible focus ring (ring-2 ring-primary ring-offset-2) for keyboard navigation."
+    "contrast": "Ensure green text on light backgrounds meets WCAG AA standards. Use text-green-800 for better readability instead of raw primary green if contrast is low.",
+    "aria_labels": "All interactive elements and icons must have descriptive aria-labels.",
+    "testing_attributes": "Add data-testid to all buttons, links, and major sections."
   },
-  "technical_instructions": {
-    "framework": "React 19 + Tailwind CSS + Shadcn UI",
-    "charts": "Recharts (Simple LineChart for price trends, PieChart for crop distribution)",
-    "maps": "Use a static placeholder or simple SVG map for District selection if no library available.",
-    "state_management": "React Context or Zustand (if needed).",
-    "forms": "React Hook Form + Zod for validation.",
-    "date_handling": "date-fns for harvest dates.",
-    "install_packages": [
-      "yarn add framer-motion clsx tailwind-merge",
-      "yarn add lucide-react recharts sonner",
-      "yarn add @radix-ui/react-slot @radix-ui/react-dialog @radix-ui/react-tabs"
-    ],
-    "universal_guidelines": [
-      "DO NOT use dark gradients.",
-      "DO NOT center align everything; use left align for text readability.",
-      "Use 'sonner' for all toast notifications.",
-      "Add 'data-testid' to all buttons and inputs.",
-      "Ensure the 'Mic' button is always visible on mobile."
-    ]
-  }
+  "instructions_to_main_agent": [
+    "Use framer-motion heavily for on-scroll animations and micro-interactions.",
+    "Implement the 'Glassmorphism' effect securely using Tailwind backdrop-blur utilities.",
+    "Add 'data-testid' to all interactive elements.",
+    "Ensure responsive design is mobile-first, prioritizing touch targets for the target audience.",
+    "Include English and Hindi text in the UI to satisfy the bilingual requirement. Keep it localized seamlessly.",
+    "Do not use Shadcn for the main marketing layouts. Build custom with standard HTML/Tailwind.",
+    "Install lucide-react and framer-motion if not already present.",
+    "Make sure to use CSS gradients and floating abstract shapes (using simple border-radius and blur in CSS) to add the 'Wow' factor."
+  ]
 }
