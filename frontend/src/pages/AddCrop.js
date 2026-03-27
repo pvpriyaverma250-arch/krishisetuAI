@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Sprout, ArrowLeft, Upload, Mic, Loader2 } from 'lucide-react';
+import { Sprout, ArrowLeft, Upload, Mic, MicOff, Loader2, Camera, CheckCircle, XCircle } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -26,6 +26,16 @@ const AddCrop = () => {
   });
   const [images, setImages] = useState([]);
   const [uploading, setUploading] = useState(false);
+  
+  // Voice recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingText, setRecordingText] = useState('');
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  
+  // Image grading states
+  const [grading, setGrading] = useState(false);
+  const [cropGrade, setCropGrade] = useState(null);
 
   const cropOptions = [
     { en: 'Wheat', hi: 'गेहूं' },
@@ -37,6 +47,84 @@ const AddCrop = () => {
     setFormData({ ...formData, name: crop.en, name_hi: crop.hi });
   };
 
+  // Voice Recording Functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      toast.info(t('Recording started... Speak now', 'रिकॉर्डिंग शुरू... अब बोलें'));
+    } catch (error) {
+      console.error('Microphone access error:', error);
+      toast.error(t('Microphone access denied', 'माइक्रोफोन एक्सेस अस्वीकृत'));
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const transcribeAudio = async (audioBlob) => {
+    setLoading(true);
+    setRecordingText(t('Transcribing...', 'ट्रांसक्राइब हो रहा है...'));
+    
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = reader.result.split(',')[1];
+        
+        const token = localStorage.getItem('session_token');
+        const response = await axios.post(
+          `${API}/ai/voice-to-text`,
+          { audio_base64: base64Audio },
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        const transcribedText = response.data.text;
+        setRecordingText('');
+        
+        // Update description with transcribed text
+        if (language === 'en') {
+          setFormData(prev => ({ 
+            ...prev, 
+            description: prev.description ? `${prev.description} ${transcribedText}` : transcribedText 
+          }));
+        } else {
+          setFormData(prev => ({ 
+            ...prev, 
+            description_hi: prev.description_hi ? `${prev.description_hi} ${transcribedText}` : transcribedText 
+          }));
+        }
+        
+        toast.success(t('Voice transcribed!', 'आवाज ट्रांसक्राइब हुई!'));
+      };
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast.error(t('Transcription failed', 'ट्रांसक्रिप्शन विफल'));
+      setRecordingText('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Image Upload and Grading
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -53,17 +141,56 @@ const AddCrop = () => {
             'Content-Type': 'multipart/form-data'
           }
         });
-        return response.data.path;
+        return { path: response.data.path, file };
       });
 
-      const paths = await Promise.all(uploadPromises);
-      setImages([...images, ...paths]);
+      const results = await Promise.all(uploadPromises);
+      setImages([...images, ...results.map(r => r.path)]);
       toast.success(t('Images uploaded!', 'चित्र अपलोड हो गए!'));
+      
+      // Auto-grade first image
+      if (formData.name && results.length > 0) {
+        await gradeImage(results[0].file);
+      }
     } catch (error) {
       console.error('Image upload failed:', error);
       toast.error(t('Upload failed', 'अपलोड विफल'));
     } finally {
       setUploading(false);
+    }
+  };
+
+  const gradeImage = async (file) => {
+    if (!formData.name) {
+      toast.error(t('Please select crop type first', 'पहले फसल प्रकार चुनें'));
+      return;
+    }
+
+    setGrading(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = async () => {
+        const base64Image = reader.result.split(',')[1];
+        
+        const token = localStorage.getItem('session_token');
+        const response = await axios.post(
+          `${API}/ai/grade-crop`,
+          { 
+            image_base64: base64Image,
+            crop_name: formData.name
+          },
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        setCropGrade(response.data);
+        toast.success(t(`Quality Grade: ${response.data.grade}`, `गुणवत्ता ग्रेड: ${response.data.grade}`));
+      };
+    } catch (error) {
+      console.error('Grading failed:', error);
+      toast.error(t('Grading failed', 'ग्रेडिंग विफल'));
+    } finally {
+      setGrading(false);
     }
   };
 
@@ -119,7 +246,8 @@ const AddCrop = () => {
           ...formData,
           quantity: parseFloat(formData.quantity),
           price: parseFloat(formData.price),
-          images
+          images,
+          quality_grade: cropGrade?.grade || null
         },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
@@ -158,6 +286,7 @@ const AddCrop = () => {
 
       <div className="container mx-auto px-4 md:px-6 max-w-3xl py-8">
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 md:p-8">
+          {/* Crop Selection */}
           <div className="mb-6">
             <label className={`text-sm font-medium text-slate-700 mb-2 block ${language === 'hi' ? 'hindi' : ''}`}>
               {t('Select Crop', 'फसल चुनें')} *
@@ -183,6 +312,7 @@ const AddCrop = () => {
             </div>
           </div>
 
+          {/* Quantity and Unit */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className={`text-sm font-medium text-slate-700 mb-1.5 block ${language === 'hi' ? 'hindi' : ''}`}>
@@ -215,6 +345,7 @@ const AddCrop = () => {
             </div>
           </div>
 
+          {/* Price */}
           <div className="mb-4">
             <label className={`text-sm font-medium text-slate-700 mb-1.5 block ${language === 'hi' ? 'hindi' : ''}`}>
               {t('Price per unit (₹)', 'प्रति इकाई मूल्य (₹)')} *
@@ -230,6 +361,7 @@ const AddCrop = () => {
             />
           </div>
 
+          {/* Location */}
           <div className="mb-4">
             <label className={`text-sm font-medium text-slate-700 mb-1.5 block ${language === 'hi' ? 'hindi' : ''}`}>
               {t('Location', 'स्थान')} *
@@ -245,22 +377,42 @@ const AddCrop = () => {
             />
           </div>
 
+          {/* Description with Voice Input */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className={`text-sm font-medium text-slate-700 ${language === 'hi' ? 'hindi' : ''}`}>
                 {t('Description', 'विवरण')}
               </label>
-              <button
-                type="button"
-                onClick={generateDescription}
-                disabled={loading}
-                data-testid="generate-desc-btn"
-                className="text-sm text-[#15803d] hover:text-[#166534] font-medium flex items-center gap-1 disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-                {t('AI Generate', 'AI से बनाएं')}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={loading}
+                  data-testid="voice-record-btn"
+                  className={`text-sm font-medium flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all ${
+                    isRecording 
+                      ? 'bg-red-100 text-red-600 animate-pulse' 
+                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  }`}
+                >
+                  {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  {isRecording ? t('Stop', 'रुकें') : t('Voice', 'आवाज')}
+                </button>
+                <button
+                  type="button"
+                  onClick={generateDescription}
+                  disabled={loading}
+                  data-testid="generate-desc-btn"
+                  className="text-sm text-[#15803d] hover:text-[#166534] font-medium flex items-center gap-1 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sprout className="h-4 w-4" />}
+                  {t('AI Generate', 'AI से बनाएं')}
+                </button>
+              </div>
             </div>
+            {recordingText && (
+              <p className="text-sm text-amber-600 mb-2">{recordingText}</p>
+            )}
             <textarea
               data-testid="description-input"
               value={language === 'en' ? formData.description : formData.description_hi}
@@ -271,15 +423,16 @@ const AddCrop = () => {
                   setFormData({ ...formData, description_hi: e.target.value });
                 }
               }}
-              placeholder={t('Describe your crop...', 'अपनी फसल का वर्णन करें...')}
+              placeholder={t('Describe your crop or use voice...', 'अपनी फसल का वर्णन करें या आवाज़ का उपयोग करें...')}
               rows={4}
               className={`w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-[#15803d]/20 focus:border-[#15803d] transition-all ${language === 'hi' ? 'hindi' : ''}`}
             />
           </div>
 
+          {/* Image Upload with Quality Grading */}
           <div className="mb-6">
             <label className={`text-sm font-medium text-slate-700 mb-1.5 block ${language === 'hi' ? 'hindi' : ''}`}>
-              {t('Crop Images', 'फसल की तस्वीरें')}
+              {t('Crop Images (AI will grade quality)', 'फसल की तस्वीरें (AI गुणवत्ता ग्रेड करेगा)')}
             </label>
             <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-[#15803d]/50 transition-colors">
               <input
@@ -292,28 +445,62 @@ const AddCrop = () => {
                 id="image-upload"
               />
               <label htmlFor="image-upload" className="cursor-pointer">
-                {uploading ? (
+                {uploading || grading ? (
                   <Loader2 className="h-12 w-12 mx-auto mb-3 text-[#15803d] animate-spin" />
                 ) : (
-                  <Upload className="h-12 w-12 mx-auto mb-3 text-slate-400" />
+                  <Camera className="h-12 w-12 mx-auto mb-3 text-slate-400" />
                 )}
                 <p className={`text-slate-600 ${language === 'hi' ? 'hindi' : ''}`}>
                   {uploading
                     ? t('Uploading...', 'अपलोड हो रहा है...')
-                    : t('Click to upload images', 'छवियां अपलोड करने के लिए क्लिक करें')}
+                    : grading 
+                    ? t('AI Grading...', 'AI ग्रेडिंग...')
+                    : t('Click to upload crop photos', 'फसल की फोटो अपलोड करने के लिए क्लिक करें')}
                 </p>
               </label>
               {images.length > 0 && (
                 <p className="text-sm text-[#15803d] mt-2">{images.length} {t('images uploaded', 'छवियां अपलोड हुईं')}</p>
               )}
             </div>
+            
+            {/* Quality Grade Display */}
+            {cropGrade && (
+              <div className={`mt-4 p-4 rounded-xl border ${
+                cropGrade.grade === 'A' ? 'bg-green-50 border-green-200' :
+                cropGrade.grade === 'B' ? 'bg-blue-50 border-blue-200' :
+                cropGrade.grade === 'C' ? 'bg-amber-50 border-amber-200' :
+                'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${
+                    cropGrade.grade === 'A' ? 'bg-green-500' :
+                    cropGrade.grade === 'B' ? 'bg-blue-500' :
+                    cropGrade.grade === 'C' ? 'bg-amber-500' :
+                    'bg-red-500'
+                  }`}>
+                    {cropGrade.grade}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800">
+                      {t('Quality Grade:', 'गुणवत्ता ग्रेड:')} {cropGrade.grade}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      {t('Confidence:', 'विश्वास:')} {Math.round(cropGrade.confidence * 100)}%
+                    </p>
+                    <p className={`text-sm mt-1 ${language === 'hi' ? 'hindi' : ''}`}>
+                      {language === 'hi' ? cropGrade.notes_hi : cropGrade.notes}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={loading || uploading}
             data-testid="submit-crop-btn"
-            className="w-full bg-[#15803d] text-white hover:bg-[#166534] rounded-xl px-6 py-3 font-medium shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-[#15803d] text-white hover:bg-[#166534] rounded-xl px-6 py-4 font-semibold shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? t('Submitting...', 'सबमिट हो रहा है...') : t('List Crop', 'फसल सूचीबद्ध करें')}
           </button>

@@ -96,7 +96,18 @@ const PriceIntelligence = () => {
                 }`}
                 data-testid="price-card"
               >
-                <p className={`font-medium text-[#0f172a] mb-2 ${language === 'hi' ? 'hindi' : ''}`}>{price.crop_name}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className={`font-medium text-[#0f172a] ${language === 'hi' ? 'hindi' : ''}`}>{price.crop_name}</p>
+                  {price.source && (
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      price.source === 'agmarknet' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {price.source === 'agmarknet' ? t('Live', 'लाइव') : t('Est.', 'अनु.')}
+                    </span>
+                  )}
+                </div>
                 <p className="text-3xl font-bold text-[#15803d] mb-1" style={{ fontFamily: 'monospace' }}>₹{price.current_price}</p>
                 <p className="text-sm text-slate-500 mb-3">per {price.unit}</p>
                 <div className="flex items-center justify-between text-sm">

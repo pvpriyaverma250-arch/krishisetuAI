@@ -11,9 +11,13 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import requests
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+from emergentintegrations.llm.openai import OpenAISpeechToText
 import base64
 import io
+import tempfile
+import aiohttp
+import re
 
 
 ROOT_DIR = Path(__file__).parent
@@ -358,6 +362,54 @@ async def delete_crop(crop_id: str, authorization: Optional[str] = Header(None))
     return {"message": "Crop deleted"}
 
 
+@api_router.get("/crops/{crop_id}/contact")
+async def get_crop_contact(crop_id: str, authorization: Optional[str] = Header(None)):
+    """Get WhatsApp contact link for a crop's farmer"""
+    await get_user_from_token(authorization=authorization)
+    
+    crop = await db.crops.find_one({"crop_id": crop_id}, {"_id": 0})
+    if not crop:
+        raise HTTPException(status_code=404, detail="Crop not found")
+    
+    # Get farmer details
+    farmer = await db.users.find_one({"user_id": crop["farmer_id"]}, {"_id": 0})
+    if not farmer:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    
+    phone = farmer.get("phone", "")
+    
+    # Create WhatsApp message
+    crop_name = crop.get("name", "Crop")
+    quantity = crop.get("quantity", 0)
+    unit = crop.get("unit", "quintal")
+    price = crop.get("price", 0)
+    location = crop.get("location", "")
+    
+    message = f"नमस्ते! मुझे KrishiSetuAI पर आपकी {crop_name} ({quantity} {unit} @ ₹{price}/{unit}) में दिलचस्पी है। क्या यह अभी उपलब्ध है? - {location}"
+    
+    # URL encode the message
+    import urllib.parse
+    encoded_message = urllib.parse.quote(message)
+    
+    # Generate WhatsApp link
+    if phone and phone.startswith("+"):
+        phone_clean = phone.replace("+", "").replace(" ", "").replace("-", "")
+        whatsapp_link = f"https://wa.me/{phone_clean}?text={encoded_message}"
+    else:
+        # If no phone, use general WhatsApp share
+        whatsapp_link = f"https://wa.me/?text={encoded_message}"
+    
+    return {
+        "farmer_name": farmer.get("name", "Farmer"),
+        "phone": phone if phone else None,
+        "whatsapp_link": whatsapp_link,
+        "crop_name": crop_name,
+        "price": price,
+        "quantity": quantity,
+        "unit": unit
+    }
+
+
 @api_router.post("/ai/voice-to-text")
 async def voice_to_text(data: VoiceToText, authorization: Optional[str] = Header(None)):
     await get_user_from_token(authorization=authorization)
@@ -365,16 +417,38 @@ async def voice_to_text(data: VoiceToText, authorization: Optional[str] = Header
     try:
         audio_bytes = base64.b64decode(data.audio_base64)
         
-        chat = LlmChat(
-            api_key=EMERGENT_KEY,
-            session_id=f"voice_{uuid.uuid4().hex[:8]}",
-            system_message="You are a voice transcription assistant."
-        ).with_model("openai", "whisper-1")
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_file:
+            tmp_file.write(audio_bytes)
+            tmp_path = tmp_file.name
         
-        return {"text": "[Voice transcription placeholder - integrate Whisper API]", "language": "hi"}
+        try:
+            stt = OpenAISpeechToText(api_key=EMERGENT_KEY)
+            
+            with open(tmp_path, "rb") as audio_file:
+                response = await stt.transcribe(
+                    file=audio_file,
+                    model="whisper-1",
+                    response_format="json",
+                    language="hi"  # Hindi by default, Whisper auto-detects
+                )
+            
+            text = response.text if hasattr(response, 'text') else str(response)
+            
+            # Detect language (simple check)
+            hindi_pattern = re.compile(r'[\u0900-\u097F]')
+            detected_lang = "hi" if hindi_pattern.search(text) else "en"
+            
+            return {"text": text, "language": detected_lang}
+        finally:
+            # Clean up temp file
+            import os as os_module
+            if os_module.path.exists(tmp_path):
+                os_module.remove(tmp_path)
+                
     except Exception as e:
         logger.error(f"Voice to text failed: {e}")
-        raise HTTPException(status_code=500, detail="Transcription failed")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
 @api_router.post("/ai/generate-description")
 async def generate_description(data: GenerateDescription, authorization: Optional[str] = Header(None)):
@@ -401,10 +475,66 @@ async def grade_crop(data: GradeCrop, authorization: Optional[str] = Header(None
     await get_user_from_token(authorization=authorization)
     
     try:
-        return {"grade": "A", "confidence": 0.85, "notes": "Good quality crop"}
+        chat = LlmChat(
+            api_key=EMERGENT_KEY,
+            session_id=f"grade_{uuid.uuid4().hex[:8]}",
+            system_message="""You are an expert agricultural quality inspector. Analyze crop images and provide quality grades.
+            
+            Grade crops as:
+            - A: Premium quality, no defects, excellent color and texture
+            - B: Good quality, minor imperfections, suitable for retail
+            - C: Average quality, some defects, suitable for processing
+            - D: Below average, significant defects
+            
+            Always respond in this exact JSON format:
+            {"grade": "A/B/C/D", "confidence": 0.0-1.0, "notes": "brief description", "notes_hi": "Hindi description"}"""
+        ).with_model("openai", "gpt-5.2")
+        
+        # Create image content for vision
+        image_content = ImageContent(image_base64=data.image_base64)
+        
+        message = UserMessage(
+            text=f"Analyze this {data.crop_name} crop image and provide quality grade. Be specific about what you observe.",
+            image_contents=[image_content]
+        )
+        
+        response = await chat.send_message(message)
+        
+        # Parse JSON response
+        try:
+            import json
+            # Try to extract JSON from response
+            json_match = re.search(r'\{[^}]+\}', response)
+            if json_match:
+                result = json.loads(json_match.group())
+                return {
+                    "grade": result.get("grade", "B"),
+                    "confidence": result.get("confidence", 0.75),
+                    "notes": result.get("notes", "Quality assessment complete"),
+                    "notes_hi": result.get("notes_hi", "गुणवत्ता मूल्यांकन पूर्ण")
+                }
+        except:
+            pass
+        
+        # Fallback parsing
+        grade = "B"
+        if "grade a" in response.lower() or "premium" in response.lower():
+            grade = "A"
+        elif "grade c" in response.lower() or "average" in response.lower():
+            grade = "C"
+        elif "grade d" in response.lower() or "poor" in response.lower():
+            grade = "D"
+            
+        return {
+            "grade": grade,
+            "confidence": 0.75,
+            "notes": response[:200] if len(response) > 200 else response,
+            "notes_hi": "AI द्वारा गुणवत्ता मूल्यांकन"
+        }
+        
     except Exception as e:
         logger.error(f"Crop grading failed: {e}")
-        raise HTTPException(status_code=500, detail="Grading failed")
+        raise HTTPException(status_code=500, detail=f"Grading failed: {str(e)}")
 
 @api_router.post("/ai/chat")
 async def chat_with_ai(data: ChatMessage, authorization: Optional[str] = Header(None)):
@@ -428,15 +558,76 @@ async def chat_with_ai(data: ChatMessage, authorization: Optional[str] = Header(
 
 @api_router.get("/prices/current")
 async def get_current_prices(crop_name: Optional[str] = None):
-    mock_prices = [
-        {"crop_name": "Wheat", "current_price": 2150.0, "min_price": 2050.0, "max_price": 2250.0, "market": "Lucknow Mandi", "date": datetime.now(timezone.utc).isoformat(), "unit": "quintal"},
-        {"crop_name": "Rice", "current_price": 3200.0, "min_price": 3100.0, "max_price": 3350.0, "market": "Lucknow Mandi", "date": datetime.now(timezone.utc).isoformat(), "unit": "quintal"},
-        {"crop_name": "Potato", "current_price": 1800.0, "min_price": 1650.0, "max_price": 1950.0, "market": "Lucknow Mandi", "date": datetime.now(timezone.utc).isoformat(), "unit": "quintal"},
-    ]
-    
-    if crop_name:
-        return [p for p in mock_prices if p["crop_name"].lower() == crop_name.lower()]
-    return mock_prices
+    # Try to fetch from CEDA Agmarknet API first
+    try:
+        async with aiohttp.ClientSession() as session:
+            # CEDA API for Agmarknet data
+            commodities_map = {
+                "wheat": "Wheat",
+                "rice": "Rice", 
+                "potato": "Potato"
+            }
+            
+            prices = []
+            today = datetime.now(timezone.utc).isoformat()
+            
+            for key, name in commodities_map.items():
+                if crop_name and crop_name.lower() != key:
+                    continue
+                    
+                try:
+                    # Try CEDA API
+                    url = f"https://api.ceda.ashoka.edu.in/agmarknet/prices?commodity={name}&state=Uttar%20Pradesh&district=Lucknow&limit=1"
+                    async with session.get(url, timeout=5) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            if data and len(data) > 0:
+                                item = data[0]
+                                prices.append({
+                                    "crop_name": name,
+                                    "current_price": float(item.get("modal_price", 0)),
+                                    "min_price": float(item.get("min_price", 0)),
+                                    "max_price": float(item.get("max_price", 0)),
+                                    "market": item.get("market", "Lucknow Mandi"),
+                                    "date": item.get("arrival_date", today),
+                                    "unit": "quintal",
+                                    "source": "agmarknet"
+                                })
+                                continue
+                except Exception as api_err:
+                    logger.warning(f"CEDA API failed for {name}: {api_err}")
+                
+                # Fallback to mock data with realistic prices
+                fallback_prices = {
+                    "Wheat": {"current": 2150, "min": 2050, "max": 2250},
+                    "Rice": {"current": 3200, "min": 3100, "max": 3350},
+                    "Potato": {"current": 1800, "min": 1650, "max": 1950}
+                }
+                fp = fallback_prices.get(name, {"current": 2000, "min": 1900, "max": 2100})
+                prices.append({
+                    "crop_name": name,
+                    "current_price": float(fp["current"]),
+                    "min_price": float(fp["min"]),
+                    "max_price": float(fp["max"]),
+                    "market": "Lucknow Mandi",
+                    "date": today,
+                    "unit": "quintal",
+                    "source": "estimated"
+                })
+            
+            return prices
+            
+    except Exception as e:
+        logger.error(f"Price fetch failed: {e}")
+        # Return mock data as fallback
+        mock_prices = [
+            {"crop_name": "Wheat", "current_price": 2150.0, "min_price": 2050.0, "max_price": 2250.0, "market": "Lucknow Mandi", "date": datetime.now(timezone.utc).isoformat(), "unit": "quintal", "source": "estimated"},
+            {"crop_name": "Rice", "current_price": 3200.0, "min_price": 3100.0, "max_price": 3350.0, "market": "Lucknow Mandi", "date": datetime.now(timezone.utc).isoformat(), "unit": "quintal", "source": "estimated"},
+            {"crop_name": "Potato", "current_price": 1800.0, "min_price": 1650.0, "max_price": 1950.0, "market": "Lucknow Mandi", "date": datetime.now(timezone.utc).isoformat(), "unit": "quintal", "source": "estimated"},
+        ]
+        if crop_name:
+            return [p for p in mock_prices if p["crop_name"].lower() == crop_name.lower()]
+        return mock_prices
 
 @api_router.get("/prices/trends")
 async def get_price_trends(crop_name: str):

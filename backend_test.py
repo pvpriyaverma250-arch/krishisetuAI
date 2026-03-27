@@ -79,7 +79,7 @@ class KrishiSetuAPITester:
         if success:
             # Verify response structure
             if isinstance(response, list) and len(response) > 0:
-                required_fields = ['crop_name', 'current_price', 'market', 'date']
+                required_fields = ['crop_name', 'current_price', 'market', 'date', 'source']
                 first_item = response[0]
                 missing_fields = [field for field in required_fields if field not in first_item]
                 if missing_fields:
@@ -91,6 +91,15 @@ class KrishiSetuAPITester:
                     expected_crops = ['Wheat', 'Rice', 'Potato']
                     found_crops = [crop for crop in expected_crops if crop in crop_names]
                     print(f"   Found crops: {found_crops}")
+                    
+                    # NEW: Check source field (agmarknet or estimated)
+                    sources = [item.get('source', 'unknown') for item in response]
+                    print(f"   Price sources: {set(sources)}")
+                    valid_sources = all(source in ['agmarknet', 'estimated'] for source in sources)
+                    if valid_sources:
+                        print("✅ All price sources are valid (agmarknet/estimated)")
+                    else:
+                        print("⚠️  Warning: Invalid price sources found")
         return success
 
     def test_current_prices_with_filter(self):
@@ -134,6 +143,30 @@ class KrishiSetuAPITester:
         success, _ = self.run_test("Create Crop (No Auth)", "POST", "crops", 401, data=crop_data)
         return success
 
+    def test_ai_endpoints_without_token(self):
+        """Test AI endpoints without token (should fail)"""
+        print("\n🤖 Testing AI Endpoints (No Auth)...")
+        
+        # Test voice-to-text without auth
+        voice_data = {"audio_base64": "fake_audio_data"}
+        success1, _ = self.run_test("Voice-to-Text (No Auth)", "POST", "ai/voice-to-text", 401, data=voice_data)
+        
+        # Test crop grading without auth
+        grade_data = {"image_base64": "fake_image_data", "crop_name": "Wheat"}
+        success2, _ = self.run_test("Crop Grading (No Auth)", "POST", "ai/grade-crop", 401, data=grade_data)
+        
+        # Test generate description without auth
+        desc_data = {"crop_name": "Wheat", "quantity": 100, "unit": "quintal", "location": "Lucknow"}
+        success3, _ = self.run_test("Generate Description (No Auth)", "POST", "ai/generate-description", 401, data=desc_data)
+        
+        return success1 and success2 and success3
+
+    def test_whatsapp_contact_endpoint(self):
+        """Test WhatsApp contact endpoint without auth"""
+        # This should fail without auth
+        success, _ = self.run_test("WhatsApp Contact (No Auth)", "GET", "crops/fake_crop_id/contact", 401)
+        return success
+
 def main():
     print("🌾 KrishiSetuAI Backend API Testing")
     print("=" * 50)
@@ -158,6 +191,8 @@ def main():
     print("\n🔒 Testing Auth Protection...")
     tester.test_auth_endpoints_without_token()
     tester.test_protected_endpoints_without_token()
+    tester.test_ai_endpoints_without_token()
+    tester.test_whatsapp_contact_endpoint()
     
     # Print results
     print("\n" + "=" * 50)
