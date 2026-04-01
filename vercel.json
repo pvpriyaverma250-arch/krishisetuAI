@@ -7,12 +7,4 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
-```
 
-> ✅ Sirf **`"rootDirectory": "frontend"`** add hua hai — baaki sab same hai
-
-## Step 3 — Commit karo
-
-Commit message likho:
-```
-Fix: set rootDirectory to frontend folder
